@@ -10,10 +10,9 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-# .env ফাইল লোড
 load_dotenv()
 
-app = FastAPI(title="Esports Verification Gate Server", version="2.0.0")
+app = FastAPI(title="Esports Verification Gate Server", version="2.5.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -24,23 +23,20 @@ app.add_middleware(
 )
 
 SERVER_SECRET_KEY = os.getenv("SERVER_SECRET_KEY", "FF_ESPORTS_SUPER_SECRET_KEY_998877")
-TELEGRAM_BOT_URL = os.getenv("TELEGRAM_BOT_URL", "https://t.me")
+TELEGRAM_BOT_URL = os.getenv("TELEGRAM_BOT_URL", "[https://t.me](https://t.me)")
 
-# সক্রিয় সেশন সেভ রাখার মেমোরি
 active_sessions: Dict[str, dict] = {}
 
 class SessionStartModel(BaseModel):
     auth_token: str
 
 def parse_and_validate_token(token: str) -> dict:
-    """টোকেন চেক করে নিশ্চিত করে তা মেইন ব্যাকএন্ড থেকেই তৈরি করা হয়েছে"""
     try:
         parts = token.split(":")
         if len(parts) != 5:
-            raise ValueError("Invalid format")
+            raise ValueError("Invalid token format")
         tg_id, role, squad_code, exp, signature = parts
         
-        # মেয়াদ উত্তীর্ণ চেক (৫ মিনিট)
         if int(time.time()) > int(exp):
             raise ValueError("Token expired")
             
@@ -61,7 +57,6 @@ def parse_and_validate_token(token: str) -> dict:
 
 @app.post("/api/gate/start")
 async def start_gate_session(data: SessionStartModel):
-    """ইউজার সাব-এডমিনের সাইটে প্রবেশ করলে মেমোরিতে সেশন স্টার্ট হয়"""
     token_info = parse_and_validate_token(data.auth_token)
     session_id = f"SESS_{hashlib.md5(data.auth_token.encode()).hexdigest()[:12]}"
     
@@ -74,15 +69,13 @@ async def start_gate_session(data: SessionStartModel):
 
 @app.post("/api/gate/verify/{session_id}")
 async def complete_gate_session(session_id: str):
-    """১৫ সেকেন্ড অবস্থান শেষে বাটন ক্লিক করলে সময় হিসাব করা হয়"""
     if session_id not in active_sessions:
         raise HTTPException(status_code=404, detail="ভুল বা মেয়াদোত্তীর্ণ সেশন!")
     
     sess = active_sessions[session_id]
     elapsed = time.time() - sess["start_time"]
     
-    # ১৫ সেকেন্ডের সার্ভার সাইড সিকিউরিটি চেক
-    if elapsed < 14.5:
+    if elapsed < 14.0:
         raise HTTPException(status_code=400, detail="১৫ সেকেন্ড পূর্ণ হওয়ার আগেই বাটন প্রেস করা হয়েছে!")
     
     sess["verified"] = True
@@ -90,13 +83,11 @@ async def complete_gate_session(session_id: str):
 
 @app.get("/sdk.js")
 async def serve_sdk():
-    """সাব-এডমিনদের সাইটের জন্য সিকিউর ও ডায়নামিক জাভাস্ক্রিপ্ট SDK"""
     js_code = f"""
 (function() {{
     const urlParams = new URLSearchParams(window.location.search);
     const authToken = urlParams.get("token") || "";
     
-    // ভেরিফিকেশন গেইটওয়ে সার্ভার ইউআরএল
     const GATEWAY_URL = window.location.origin;
     const BOT_URL = "{TELEGRAM_BOT_URL}";
 
@@ -124,7 +115,6 @@ async def serve_sdk():
 
     let sessionId = "";
 
-    // সেশন স্টার্ট রিকোয়েস্ট
     fetch(`${{GATEWAY_URL}}/api/gate/start`, {{
         method: "POST",
         headers: {{ "Content-Type": "application/json" }},
@@ -144,7 +134,6 @@ async def serve_sdk():
     }});
 
     function startTimer() {{
-        // রোল ডিটেকশন UI আপডেট
         const roleDisplay = widgetBox.querySelector("#role-display");
         const isLeader = authToken.includes(":leader:");
         roleDisplay.innerText = isLeader ? "👑 Squad Leader - Registration" : "👥 Squad Member - Join";
