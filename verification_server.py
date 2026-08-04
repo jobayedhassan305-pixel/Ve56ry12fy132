@@ -61,7 +61,19 @@ async def complete_gate_session(session_id: str):
 @app.get("/sdk.js")
 async def serve_sdk():
     js_code = f"""
-(function() {{
+document.addEventListener("DOMContentLoaded", function() {{
+    initEsportsVerification();
+}});
+
+// যদি DOM ইতিমধ্যে লোড হয়ে থাকে
+if (document.readyState === "interactive" || document.readyState === "complete") {{
+    initEsportsVerification();
+}}
+
+function initEsportsVerification() {{
+    if (window.esportsSDKInitialized) return;
+    window.esportsSDKInitialized = true;
+
     // URL থেকে টোকেন সংগ্রহ
     const urlParams = new URLSearchParams(window.location.search);
     const authToken = urlParams.get("token") || "";
@@ -74,12 +86,12 @@ async def serve_sdk():
     if (!container) {{
         container = document.createElement("div");
         container.id = "esports-verify-widget";
-        document.body.prepend(container);
+        document.body.appendChild(container);
     }}
 
-    // বাটন ও উইজেট কার্ড
+    // বাটন ও উইজেট কার্ড তৈরি
     const widgetBox = document.createElement("div");
-    widgetBox.style.cssText = "background:#0f141c; border:2px solid #ff4500; border-radius:12px; padding:20px; max-width:380px; margin:20px auto; text-align:center; font-family:-apple-system, sans-serif; color:#ffffff; box-shadow:0 0 15px rgba(255, 69, 0, 0.4);";
+    widgetBox.style.cssText = "background:#0f141c; border:2px solid #ff4500; border-radius:12px; padding:20px; max-width:380px; margin:30px auto; text-align:center; font-family:sans-serif; color:#ffffff; box-shadow:0 0 15px rgba(255, 69, 0, 0.4); position:relative; z-index:99999;";
 
     widgetBox.innerHTML = `
         <div style="font-size:18px; font-weight:bold; color:#ffb700; margin-bottom:8px;">🔥 Free Fire Verification</div>
@@ -145,8 +157,8 @@ async def serve_sdk():
             }}
         }}, 1000);
 
-        // বাটনে ক্লিক করলে ভেরিফিকেশন হবে
-        btnAction.addEventListener("click", async function() {{
+        // ম্যানুয়াল ক্লিকে ভেরিফিকেশন হবে
+        btnAction.onclick = async function() {{
             btnAction.disabled = true;
             btnAction.innerText = "যাচাই করা হচ্ছে...";
 
@@ -166,10 +178,9 @@ async def serve_sdk():
                 alert("⚠️ সার্ভার কানেকশন ত্রুটি!");
                 btnAction.disabled = false;
             }}
-        }});
+        }};
     }}
-
-}})();
+}}
     """
     return Response(content=js_code, media_type="application/javascript")
 
@@ -177,4 +188,3 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8001))
     uvicorn.run("verification_server:app", host="0.0.0.0", port=port, reload=True)
-
